@@ -1,0 +1,4 @@
+results/
+.pkl_memoize_py3/
+.DS_Store
+__pycache__/
