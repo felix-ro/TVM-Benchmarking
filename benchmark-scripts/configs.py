@@ -1,5 +1,7 @@
+"""This module allows the configuration of the benchmark"""
+# pylint: skip-file
 # ##################### Configure Trials ######################
-MAX_TRIALS_LIST = [2000]
+MAX_TRIALS_LIST = [100]
 BUILD_ONLY = False
 NUM_REPEATS = 1
 FLUSH_CACHES = False  # Does not work on MacOS (enable whenever possible)
@@ -26,7 +28,7 @@ TUNING_CORES = 16
 
 # ################# Select Model #################
 # MODEL_NAME = "mobilenet"
-# MODEL_NAME = "matmul"
+MODEL_NAME = "matmul"
 # MODEL_NAME = "resnet50"
 # MODEL_NAME = "multilayer_perceptron"
 # MODEL_NAME = "bert"
