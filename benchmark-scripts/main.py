@@ -36,7 +36,7 @@ def parse_arguments(raw_arguments: List[str]):
                 configs.MAX_TRIALS_LIST = [int(current_value)]
             if current_argument == "--SDR":
                 configs.USE_SEQUENTIAL_DOMAIN_REDUCTION = True
-            if current_argument == "--RML":
+            if current_argument == "--LRU":
                 configs.RESTRICTED_MEMORY_LOGGING = True
             if current_argument == "--Heap":
                 configs.USE_MIN_HEAP = True

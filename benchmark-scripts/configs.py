@@ -1,10 +1,10 @@
 """This module allows the configuration of the benchmark"""
 # pylint: skip-file
 # ##################### Configure Trials ######################
-MAX_TRIALS_LIST = [100]
+MAX_TRIALS_LIST = [6000]  # Specify the number of tuning trials, e.g., [1000, 2000] to compile with 1000, followed by 2000 trials
 BUILD_ONLY = False
-NUM_REPEATS = 1
-FLUSH_CACHES = False  # Does not work on MacOS (enable whenever possible)
+NUM_REPEATS = 1  # The number of times you want to compile the model
+FLUSH_CACHES = False  # Flush CPU caches. Does not work on MacOS (enable whenever possible)
 
 # ################### Configure CPU Target ####################
 NUM_TARGET_CORES = 16
@@ -22,8 +22,8 @@ SEARCH_STRATEGY = "bayesian"
 # SEARCH_STRATEGY = "evolutionary"
 
 # ################# Configure Tuning Cores #################
-TUNING_CORES = 16
 # TUNING_CORES = 1
+TUNING_CORES = 16
 # TUNING_CORES = 38
 
 # ################# Select Model #################
@@ -39,6 +39,7 @@ MODEL_NAME = "matmul"
 # ############# Additional Settings ##############
 TAG = ""
 
+# ### The below settings only matter if you use the bayesian strategy ###
 LOG_LIMIT = 250
 RESTRICTED_MEMORY_LOGGING = False
 
