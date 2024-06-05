@@ -37,7 +37,7 @@ def parse_arguments(raw_arguments: List[str]):
             if current_argument == "--SDR":
                 configs.USE_SEQUENTIAL_DOMAIN_REDUCTION = True
             if current_argument == "--LRU":
-                configs.RESTRICTED_MEMORY_LOGGING = True
+                configs.USE_LRU = True
             if current_argument == "--Heap":
                 configs.USE_MIN_HEAP = True
             if current_argument == "--LogLimit":
@@ -50,9 +50,8 @@ def parse_arguments(raw_arguments: List[str]):
         print(str(err))
 
 
-def main():
-    """Main Function"""
-    parse_arguments(sys.argv[1:])
+def configure_environment():
+    """Configures the environment variables"""
     os.environ["NUMEXPR_MAX_THREADS"] = str(configs.TUNING_CORES)
     os.environ["TVM_NUM_THREADS"] = str(configs.NUM_TARGET_CORES)
     if configs.LOG_LIMIT is not None:
@@ -60,8 +59,8 @@ def main():
     if configs.USE_SEQUENTIAL_DOMAIN_REDUCTION is not None:
         os.environ["TVM_BO_USE_SEQUENTIAL_DOMAIN_REDUCTION"] = \
             str(configs.USE_SEQUENTIAL_DOMAIN_REDUCTION)
-    if configs.RESTRICTED_MEMORY_LOGGING is not None:
-        os.environ["TVM_BO_RESTRICTED_MEMORY_LOGGING"] = str(configs.RESTRICTED_MEMORY_LOGGING)
+    if configs.USE_LRU is not None:
+        os.environ["TVM_BO_RESTRICTED_MEMORY_LOGGING"] = str(configs.USE_LRU)
     if configs.ACQUISITION_FUNCTION is not None:
         os.environ["TVM_BO_ACQUISITION_FUNCTION"] = configs.ACQUISITION_FUNCTION
     if configs.KAPPA is not None:
@@ -72,6 +71,11 @@ def main():
         os.environ["TVM_BO_REGISTER_FAILURE_POINTS"] = str(configs.REGISTER_FAILURE_POINTS)
     if configs.USE_MIN_HEAP is not None:
         os.environ["TVM_BO_USE_MIN_HEAP"] = str(configs.USE_MIN_HEAP)
+
+def main():
+    """Main Function"""
+    parse_arguments(sys.argv[1:])
+    configure_environment()
 
     target = tvm.target.Target(configs.TARGET_NAME)
     mod, params = get_mod_and_params()
@@ -95,7 +99,6 @@ def main():
                                                           target=target,
                                                           work_dir=work_dir,
                                                           max_trials=trials)
-
                 export_library(lib=lib,
                                model_name=configs.MODEL_NAME,
                                target_name=configs.TARGET_NAME,

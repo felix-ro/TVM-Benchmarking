@@ -1,5 +1,4 @@
 """This module provides benchmarking utilities"""
-
 import os
 from time import sleep
 from pathlib import Path
@@ -20,8 +19,16 @@ from tvm.runtime.module import BenchmarkResult
 import configs
 
 
-def get_mod_and_params():
-    """Retrieves the IRModule and parameters for a network"""
+def get_mod_and_params() -> Tuple[tvm.IRModule, dict]:
+    """Retrieves the IRModule and parameters for a network
+    
+    Returns
+    -------
+    mod: IRModule
+        The models IRModule
+    params: dict
+        The parameters
+    """
     if configs.MODEL_NAME == "mobilenet":
         return testing.mobilenet.get_workload(batch_size=1,
                                               num_classes=1000,
@@ -147,6 +154,8 @@ def get_mod_and_params():
                                                  num_classes=1000,
                                                  image_shape=(3, 299, 299),
                                                  dtype="float32")
+    else:
+        raise ValueError(f"No model matching the name '{configs.MODEL_NAME}'")
 
 
 def tune(mod: tvm.IRModule, params: dict, target: Target, work_dir: str,
@@ -165,6 +174,15 @@ def tune(mod: tvm.IRModule, params: dict, target: Target, work_dir: str,
         The path to the working directory in which progress is saved
     max_trials: int
         The maximum number of trials used for tuning
+    
+    Returns
+    -------
+    graph_module: GraphModule
+        The graph module
+    lib: ExecutorFactoryModule
+        The executor module
+    profiler: meta_schedule.Profiler
+        The profiler used during the search
     """
     with meta_schedule.Profiler() as profiler:
 
@@ -186,7 +204,7 @@ def tune(mod: tvm.IRModule, params: dict, target: Target, work_dir: str,
             num_trials_per_iter=64,
             cost_model=XGBModel()
         )
-        lib: ExecutorFactoryModule = meta_schedule.relay_integration.compile_relay(
+        lib = meta_schedule.relay_integration.compile_relay(
             database=database,
             mod=mod,
             target=target,
@@ -195,15 +213,33 @@ def tune(mod: tvm.IRModule, params: dict, target: Target, work_dir: str,
         )
 
     print(profiler.table())
-    with open(f"{work_dir}profiler.log", "w", encoding="utf-8",) as file:
+    with open(os.path.join(work_dir, "profiler.log"), "w", encoding="utf-8",) as file:
         file.write(str(profiler.table()))
     device = tvm.device(str(target), 0)
     graph_module = GraphModule(lib["default"](device))
     return graph_module, lib, profiler
 
 
-def build(mod: tvm.IRModule, params: dict, target: Target):
-    """Build executable"""
+def build(mod: tvm.IRModule, params: dict,
+          target: Target) -> Tuple[GraphModule, ExecutorFactoryModule]:
+    """Build executable
+    
+    Parameters
+    ----------
+    mod: IRModule
+        The IRModule to build
+    params: dict
+        The parameters of the model
+    target: Target
+        The hardware target
+    
+    Returns
+    -------
+    graph_module: GraphModule
+        The graph module
+    lib: ExecutorFactoryModule
+        The executor module
+    """
     with tvm.transform.PassContext(opt_level=3):
         lib: ExecutorFactoryModule = relay.build_module.build(
                                             mod,
@@ -222,7 +258,13 @@ def get_simplified_target_name(target_name: str) -> str:
     ----------
     target_name: str
         The long target name
+
+    Returns
+    -------
+    simplified_name: str
+        The simplified target name ("llvm" or "cuda")
     """
+    # ToDo add metal
     if "llvm" in target_name:
         return "llvm"
     else:
@@ -270,7 +312,7 @@ def log_config(work_dir: str):
     message += f"Total Trials={configs.MAX_TRIALS_LIST}\n"
     message += f"Log Limit={configs.LOG_LIMIT}\n"
     message += f"Heap={configs.USE_MIN_HEAP}\n"
-    message += f"RML={configs.RESTRICTED_MEMORY_LOGGING}\n"
+    message += f"RML={configs.USE_LRU}\n"
     message += f"SDR={configs.USE_SEQUENTIAL_DOMAIN_REDUCTION}\n"
 
     if not os.path.exists(work_dir):
@@ -281,7 +323,7 @@ def log_config(work_dir: str):
 
 
 def log_benchmark_results(results: BenchmarkResult, work_dir: str, num_trials: int,
-                          profile_results: meta_schedule.Profiler):
+                          profiler: meta_schedule.Profiler):
     """Logs the benchmark results
     
     Parameters
@@ -292,13 +334,13 @@ def log_benchmark_results(results: BenchmarkResult, work_dir: str, num_trials: i
         The working directory to save the results to
     num_trials: int
         The number of tuning trials used to compile the benchmarked module
-    profile_results: meta_schedule.Profiler
+    profiler: meta_schedule.Profiler
         The profiling results
     """
     dir_path = Path(work_dir)
     parent_dir = dir_path.parent
-    if profile_results is not None:
-        total_duration = float(profile_results.get()["Total"])/60
+    if profiler is not None:
+        total_duration = float(profiler.get()["Total"])/60
     else:
         total_duration = 0
 
@@ -310,20 +352,19 @@ def log_benchmark_results(results: BenchmarkResult, work_dir: str, num_trials: i
                        "duration,kappa,log,min heap,RML,SDR,AcqFunc,Xi\n")
     with open(file_path, "+a", encoding="utf-8") as file:
         file.write(f"{num_trials},{results.mean * 1000:.4f},"
-                   f"{results.median * 1000:.4f}," +
-                   f"{results.max * 1000:.4f}," +
-                   f"{results.min * 1000:.4f}," +
-                   f"{results.std * 1000:.4f}," +
-                   f"{configs.NUM_TARGET_CORES}," +
-                   f"{total_duration:.4f}," +
-                   f"{configs.KAPPA}," +
-                   f"{configs.LOG_LIMIT}," +
-                   f"{configs.USE_MIN_HEAP}," +
-                   f"{configs.RESTRICTED_MEMORY_LOGGING}," +
-                   f"{configs.USE_SEQUENTIAL_DOMAIN_REDUCTION}," +
-                   f"{configs.ACQUISITION_FUNCTION}," +
+                   f"{results.median * 1000:.4f},"
+                   f"{results.max * 1000:.4f},"
+                   f"{results.min * 1000:.4f},"
+                   f"{results.std * 1000:.4f},"
+                   f"{configs.NUM_TARGET_CORES},"
+                   f"{total_duration:.4f},"
+                   f"{configs.KAPPA},"
+                   f"{configs.LOG_LIMIT},"
+                   f"{configs.USE_MIN_HEAP},"
+                   f"{configs.USE_LRU},"
+                   f"{configs.USE_SEQUENTIAL_DOMAIN_REDUCTION},"
+                   f"{configs.ACQUISITION_FUNCTION},"
                    f"{configs.XI}\n")
-
 
 
 def benchmark(target: Target, lib: ExecutorFactoryModule, work_dir: str,
@@ -343,7 +384,7 @@ def benchmark(target: Target, lib: ExecutorFactoryModule, work_dir: str,
         The graph module
     num_trials: int
         The number of trials used to compile the model
-    profile: meta_schedule.Profiler
+    profiler: meta_schedule.Profiler
         The profiler
     number_of_benchmarks: int
         The number of repeated benchmarks (this is not the number of repeats per benchmark)
@@ -353,10 +394,10 @@ def benchmark(target: Target, lib: ExecutorFactoryModule, work_dir: str,
                                 [dev], lib.get_graph_json(), work_dir)
 
     print("\n", debugger.profile())
-    with open(f"{work_dir}debugger_profile.log", "w", encoding="utf-8") as file:
+    with open(os.path.join(work_dir, "debugger_profile.log"), "w", encoding="utf-8") as file:
         file.write(str(debugger.profile()))
 
-    with open(f"{work_dir}benchmark_results.log", "+a", encoding="utf-8") as file:
+    with open(os.path.join(work_dir, "benchmark_results.log"), "a", encoding="utf-8") as file:
         for _ in range(number_of_benchmarks):
             sleep(10)
             result: BenchmarkResult = graph_module.benchmark(device=dev, repeat=10, number=1000)
